@@ -1,11 +1,11 @@
+use crate::config::Config;
+use crate::layout::Layout;
 use crate::logger::Logger;
-use clap::ValueEnum;
 use hyprland::data::{Client, Workspace, Workspaces};
 use hyprland::keyword::Keyword;
 use hyprland::shared::{HyprData, HyprDataActive, HyprDataActiveOptional};
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 use std::process::Command;
@@ -44,9 +44,16 @@ impl Hypr {
         pgrep.is_ok_and(|output| !output.stdout.is_empty())
     }
 
-    pub fn change_layout(layout: Layout) -> anyhow::Result<()> {
-        Keyword::set("input:kb_layout", layout.to_string())?;
-        Logger::new("layout").write(&layout)
+    pub fn change_layout(layout_str: String, config: &Config) -> anyhow::Result<()> {
+        let layout = Layout::try_from(layout_str.as_str())?;
+        if !config.layouts.contains(&layout) {
+            return Err(anyhow::anyhow!(
+                "Given layout '{layout}' does not exist in configuration"
+            ));
+        }
+        config.set_eww(&layout, None)?;
+        config.send_to_eww(&layout)?;
+        Ok(())
     }
 
     pub fn change_workspace() -> anyhow::Result<()> {
@@ -121,21 +128,6 @@ impl WorkspaceState {
             id,
             windows,
             active,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Copy, Clone, ValueEnum)]
-pub enum Layout {
-    Fr,
-    Us,
-}
-
-impl Display for Layout {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Layout::Fr => write!(f, "fr"),
-            Layout::Us => write!(f, "us"),
         }
     }
 }

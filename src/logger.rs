@@ -1,13 +1,14 @@
 use anyhow::anyhow;
 use core::panic;
 use serde::{Deserialize, Serialize};
-use std::{io::Write, marker::PhantomData, path::PathBuf};
+use std::{io::Write, marker::PhantomData, path::PathBuf, process::Command};
 
 const DIR: &str = ".local/state/emanager";
 
 pub struct Logger<T: Serialize + for<'a> Deserialize<'a>> {
     full_path: PathBuf,
     file: String,
+    name: String,
     phantom: PhantomData<T>,
 }
 
@@ -20,6 +21,7 @@ impl<T: Serialize + for<'a> Deserialize<'a>> Logger<T> {
         let mut full_path = home_dir.unwrap();
         full_path.push(DIR);
         Self {
+            name: name.to_string(),
             full_path: full_path.to_owned(),
             file: format!(
                 "{}/{name}",
@@ -27,6 +29,16 @@ impl<T: Serialize + for<'a> Deserialize<'a>> Logger<T> {
             ),
             phantom: PhantomData,
         }
+    }
+
+    pub fn send(&self, state: &T) -> anyhow::Result<()> {
+        Command::new("eww")
+            .args([
+                "update",
+                &format!("{}={}", self.name, serde_json::to_string(state)?),
+            ])
+            .output()?;
+        Ok(())
     }
 
     pub fn write(&self, state: &T) -> anyhow::Result<()> {

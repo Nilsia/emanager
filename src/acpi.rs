@@ -1,5 +1,6 @@
 use crate::args::Command;
 use crate::brightness::BrightnessOp;
+use crate::config::Config;
 use crate::manager::Manager;
 use crate::system::SystemOp;
 use crate::volume::VolumeOp;
@@ -11,7 +12,7 @@ use std::time::{Duration, Instant};
 pub struct Acpi;
 
 impl Acpi {
-    pub fn listen() -> anyhow::Result<()> {
+    pub fn listen(config: &Config) -> anyhow::Result<()> {
         let stream = UnixStream::connect("/run/acpid.socket")?;
         let reader = BufReader::new(stream);
 
@@ -20,7 +21,7 @@ impl Acpi {
         for line in reader.lines().flatten() {
             if last.elapsed() >= delay {
                 let event = line.split(' ').collect::<Vec<&str>>();
-                Self::handle(&event)?;
+                Self::handle(&event, config)?;
                 last = Instant::now();
             }
         }
@@ -28,7 +29,7 @@ impl Acpi {
         Ok(())
     }
 
-    fn handle(event: &[&str]) -> anyhow::Result<()> {
+    fn handle(event: &[&str], config: &Config) -> anyhow::Result<()> {
         match event.get(0) {
             Some(&"button/lid") => match event.get(2) {
                 Some(&"close") => Some(Command::System {
@@ -59,6 +60,6 @@ impl Acpi {
             }),
             _ => None,
         }
-        .map_or(Ok(()), Manager::handle)
+        .map_or(Ok(()), |e| Manager::handle(e, config))
     }
 }
