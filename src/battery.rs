@@ -16,7 +16,7 @@ impl Battery {
             let state = Self::get_state(&manager, &mut battery)?;
             if Some(&state) != current.as_ref() {
                 state.notify()?;
-                state.log()?;
+                state.update_view()?;
                 current = Some(state)
             }
             std::thread::sleep(Duration::from_secs(2));
@@ -38,6 +38,11 @@ impl Battery {
             .next()
             .ok_or(anyhow!("No battery found"))?;
         Ok((manager, battery))
+    }
+
+    pub(crate) fn init_view() -> anyhow::Result<()> {
+        let (mut manager, mut battery) = Self::get_battery()?;
+        Self::get_state(&mut manager, &mut battery)?.update_view()
     }
 }
 
@@ -94,7 +99,7 @@ impl BatteryState {
         Ok(())
     }
 
-    pub fn log(&self) -> anyhow::Result<()> {
-        Logger::new("battery").write(self)
+    pub fn update_view(&self) -> anyhow::Result<()> {
+        Logger::new("battery-json").send(self)
     }
 }

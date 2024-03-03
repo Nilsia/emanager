@@ -19,7 +19,7 @@ impl Layout {
         }
     }
 
-    pub(crate) fn send_to_eww(&self, layouts: &[Layout]) -> anyhow::Result<()> {
+    pub(crate) fn send_to_view(&self, layouts: &[Layout]) -> anyhow::Result<()> {
         Logger::new("layout-list").send(
             &layouts
                 .iter()

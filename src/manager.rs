@@ -16,7 +16,7 @@ impl Manager {
         if Self::running() {
             return Err(anyhow!("Manager is already running"));
         }
-        Self::send_default(config)?;
+        Self::init_view(config)?;
         std::thread::scope(|scope| -> anyhow::Result<()> {
             let handle = scope.spawn(|| Acpi::listen(config));
             scope.spawn(|| Battery::listen());
@@ -27,14 +27,12 @@ impl Manager {
         })
     }
 
-    pub fn send_default(config: &Config) -> anyhow::Result<()> {
-        config
-            .layouts
-            .get(0)
-            .map(|v| v.send_to_eww(&config.layouts))
-            .ok_or(anyhow::anyhow!(
-                "Wrong configuration this should not happen (layouts) missing"
-            ))??;
+    fn init_view(config: &Config) -> anyhow::Result<()> {
+        config.init_view()?;
+        Volume::init_view()?;
+        Brightness::init_view()?;
+        Wifi::init_view()?;
+        Battery::init_view()?;
         Ok(())
     }
 

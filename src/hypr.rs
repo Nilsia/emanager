@@ -54,8 +54,8 @@ impl Hypr {
                     ));
                 }
                 config.update_layout_sequence(&layout)?;
-                config.set_eww(&layout, None)?;
-                config.send_to_eww(&layout)?;
+                config.update_view(&layout, None)?;
+                config.send_to_view(&layout)?;
                 Ok(())
             }
             LayoutOp::Switch => config.switch_layout_sequence(),
@@ -72,13 +72,13 @@ impl Hypr {
             }
         }
         states.sort_by_key(|workspace| workspace.id);
-        Logger::new("workspaces").write(&states)
+        Logger::new("workspaces-json").send(&states)
     }
 
     pub fn change_color() -> anyhow::Result<()> {
         let color = Self::rand_color();
         Keyword::set("general:col.active_border", format!("rgba({color}ee)"))?;
-        Logger::new("color").write(&color)
+        Logger::new("border-color").send(&color)
     }
 
     pub fn get_color() -> String {

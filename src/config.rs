@@ -9,6 +9,7 @@ use crate::{layout::Layout, logger::Logger};
 #[serde(default)]
 pub struct Config {
     pub layouts: Vec<Layout>,
+    pub compositor: String,
 }
 
 impl Config {
@@ -22,7 +23,7 @@ impl Config {
         }
     }
 
-    pub(crate) fn set_eww(
+    pub(crate) fn update_view(
         &self,
         layout_to_set: &Layout,
         current_layout: Option<&Layout>,
@@ -49,21 +50,21 @@ impl Config {
         );
 
         let (layout_str, layout_variant_str) = (
-            self.generate_layout_hypr(layout_to_set, &layouts),
-            self.generate_variant_hypr(layout_to_set, &layouts_var),
+            self.generate_layout_sequence(layout_to_set, &layouts),
+            self.generate_variant_sequence(layout_to_set, &layouts_var),
         );
 
         // this allow smooth changes between layouts (Hyprland were crashing from layout without variants to layout with variants (resp reverse))
         if current.layout != layout_to_set.layout {
             match (&layout_to_set.variant, &current.variant) {
                 (None, Some(_)) => {
-                    self.set_eww(&Layout::new(&current.layout, None), Some(&current))?
+                    self.update_view(&Layout::new(&current.layout, None), Some(&current))?
                 }
                 (Some(_), None) => {
-                    self.set_eww(&Layout::new(&layout_to_set.layout, None), Some(&current))?
+                    self.update_view(&Layout::new(&layout_to_set.layout, None), Some(&current))?
                 }
                 (Some(_), Some(_)) => {
-                    self.set_eww(&Layout::new(&layout_to_set.layout, None), Some(&current))?
+                    self.update_view(&Layout::new(&layout_to_set.layout, None), Some(&current))?
                 }
                 (None, None) => (),
             }
@@ -74,7 +75,7 @@ impl Config {
         Ok(())
     }
 
-    fn generate_variant_hypr(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
+    fn generate_variant_sequence(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
         layout_to_set
             .variant
             .as_ref()
@@ -83,11 +84,11 @@ impl Config {
             + &layouts.join(",")
     }
 
-    fn generate_layout_hypr(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
+    fn generate_layout_sequence(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
         layout_to_set.layout.to_owned() + "," + &layouts.join(",")
     }
 
-    pub(crate) fn send_to_eww(&self, layout: &Layout) -> anyhow::Result<()> {
+    pub(crate) fn send_to_view(&self, layout: &Layout) -> anyhow::Result<()> {
         Logger::new("layout-list").send(
             &self
                 .layouts
@@ -111,11 +112,14 @@ impl Config {
                 None => return Err(anyhow::anyhow!(e.to_string())),
             }
         }
-        Ok(data_err
-            .unwrap()
-            .iter()
-            .flat_map(Layout::try_from)
-            .collect::<Vec<Layout>>())
+        if let Ok(data) = data_err {
+            Ok(data
+                .iter()
+                .flat_map(Layout::try_from)
+                .collect::<Vec<Layout>>())
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     pub fn update_layout_sequence(&self, layout: &Layout) -> anyhow::Result<()> {
@@ -134,17 +138,27 @@ impl Config {
             _ => {
                 let layout = sequences.get(1).unwrap();
                 self.update_layout_sequence(layout)?;
-                self.set_eww(layout, None)?;
-                self.send_to_eww(layout)?;
+                self.update_view(layout, None)?;
+                self.send_to_view(layout)?;
                 Ok(())
             }
         }
+    }
+    pub fn init_view(&self) -> anyhow::Result<()> {
+        self.layouts
+            .get(0)
+            .map(|l| l.send_to_view(&self.layouts))
+            .ok_or(anyhow::anyhow!(
+                "Wrong configuration this should not happen (layouts) missing"
+            ))??;
+        Ok(())
     }
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
+            compositor: String::from("hyprland"),
             layouts: vec![Layout::new("fr", None), Layout::new("us", None)],
         }
     }

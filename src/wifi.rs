@@ -18,7 +18,7 @@ impl Wifi {
             let state = Self::get_state()?;
             if Some(&state) != current.as_ref() {
                 state.notify_connection_update(current)?;
-                state.log()?;
+                state.update_view()?;
                 current = Some(state);
             }
             std::thread::sleep(Duration::from_secs(2));
@@ -58,7 +58,7 @@ impl Wifi {
         } else {
             (WifiState::new(false, "", 0), true)
         };
-        state.log()?;
+        state.update_view()?;
         state.notify_switch_update((WifiTurnType::On, error))
     }
 
@@ -72,6 +72,10 @@ impl Wifi {
             WifiTurnType::On => Self::turn_on(),
             WifiTurnType::Off => Self::turn_off(),
         }
+    }
+
+    pub(crate) fn init_view() -> anyhow::Result<()> {
+        Self::get_state()?.update_view()
     }
 }
 
@@ -143,8 +147,8 @@ impl WifiState {
         Ok(())
     }
 
-    pub fn log(&self) -> anyhow::Result<()> {
-        Logger::new("wifi").write(self)
+    pub fn update_view(&self) -> anyhow::Result<()> {
+        Logger::new("wifi-json").send(self)
     }
 }
 

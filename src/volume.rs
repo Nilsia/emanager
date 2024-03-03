@@ -66,7 +66,7 @@ impl Volume {
         let (working, muted, value) = (Self::working()?, Self::muted()?, Self::get()?);
         let state = VolumeState::new(value, muted, working);
         state.notify()?;
-        state.log()
+        state.update_view()
     }
 
     pub fn handle(operation: VolumeOp) -> anyhow::Result<()> {
@@ -82,6 +82,12 @@ impl Volume {
     fn exec(args: &[impl AsRef<OsStr>]) -> anyhow::Result<Output> {
         let output = Command::new(PROGRAM).args(args).output()?;
         Ok(output)
+    }
+
+    pub(crate) fn init_view() -> anyhow::Result<()> {
+        let (working, muted, value) = (Self::working()?, Self::muted()?, Self::get()?);
+        let state = VolumeState::new(value, muted, working);
+        state.update_view()
     }
 }
 
@@ -152,7 +158,7 @@ impl VolumeState {
         }
     }
 
-    pub fn log(&self) -> anyhow::Result<()> {
-        Logger::new("volume").write(self)
+    pub fn update_view(&self) -> anyhow::Result<()> {
+        Logger::new("volume-json").send(self)
     }
 }

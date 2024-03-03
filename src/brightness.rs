@@ -39,7 +39,7 @@ impl Brightness {
         }
         let state = BrightnessState::new(Self::get()?);
         state.notify()?;
-        state.log()
+        state.update_view()
     }
 
     pub fn handle(operation: BrightnessOp) -> anyhow::Result<()> {
@@ -59,6 +59,10 @@ impl Brightness {
     fn exec(args: &[impl AsRef<OsStr>]) -> anyhow::Result<Output> {
         let output = Command::new(PROGRAM).args(args).output()?;
         Ok(output)
+    }
+
+    pub(crate) fn init_view() -> anyhow::Result<()> {
+        BrightnessState::new(Self::get()?).update_view()
     }
 }
 
@@ -123,7 +127,7 @@ impl BrightnessState {
         )
     }
 
-    pub fn log(&self) -> anyhow::Result<()> {
-        Logger::new("brightness").write(self)
+    pub fn update_view(&self) -> anyhow::Result<()> {
+        Logger::new("brightness-json").send(self)
     }
 }
