@@ -31,7 +31,8 @@ impl Manager {
             Command::Brightness { operation } => Brightness::handle(operation),
             Command::Volume { operation } => Volume::handle(operation),
             Command::Layout { layout } => Hypr::change_layout(layout),
-            _ => Ok(()),
+            Command::Wifi { operation } => Wifi::handle(operation),
+            Command::Daemon => Ok(()),
         }
     }
 

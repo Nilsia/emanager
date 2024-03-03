@@ -1,7 +1,9 @@
 use crate::logger::Logger;
 use crate::notifier::Notifier;
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
+use std::fmt::Display;
 use std::process::{Command, Output};
 use std::time::Duration;
 
@@ -15,7 +17,7 @@ impl Wifi {
         loop {
             let state = Self::get_state()?;
             if Some(&state) != current.as_ref() {
-                state.notify(current)?;
+                state.notify_connection_update(current)?;
                 state.log()?;
                 current = Some(state);
             }
@@ -38,9 +40,38 @@ impl Wifi {
             .unwrap_or(WifiState::new(false, "", 0)))
     }
 
+    fn turn_on() -> anyhow::Result<()> {
+        Self::turn(WifiTurnType::On)
+    }
+
+    fn turn_off() -> anyhow::Result<()> {
+        Self::turn(WifiTurnType::Off)
+    }
+
+    /// return
+    fn turn(signal: WifiTurnType) -> anyhow::Result<()> {
+        let (state, error) = if Self::exec(&["radio", "wifi", signal.as_ref()])?
+            .stderr
+            .is_empty()
+        {
+            (Self::get_state()?, false)
+        } else {
+            (WifiState::new(false, "", 0), true)
+        };
+        state.log()?;
+        state.notify_switch_update((WifiTurnType::On, error))
+    }
+
     fn exec(args: &[impl AsRef<OsStr>]) -> anyhow::Result<Output> {
         let output = Command::new(PROGRAM).args(args).output()?;
         Ok(output)
+    }
+
+    pub fn handle(operation: WifiTurnType) -> anyhow::Result<()> {
+        match operation {
+            WifiTurnType::On => Self::turn_on(),
+            WifiTurnType::Off => Self::turn_off(),
+        }
     }
 }
 
@@ -69,7 +100,7 @@ impl WifiState {
         Self { active, ssid, icon }
     }
 
-    pub fn notify(&self, prev: Option<Self>) -> anyhow::Result<()> {
+    pub fn notify_connection_update(&self, prev: Option<Self>) -> anyhow::Result<()> {
         let notifier = Notifier::new("wifi");
         if self.active && !prev.as_ref().is_some_and(|s| s.active) {
             notifier.send(
@@ -89,7 +120,51 @@ impl WifiState {
         Ok(())
     }
 
+    pub fn notify_switch_update(
+        &self,
+        (operation, error): (WifiTurnType, bool),
+    ) -> anyhow::Result<()> {
+        let notifier = Notifier::new("wifi");
+        if error {
+            notifier.send(
+                "Wi-Fi",
+                &format!("Unable to turn {} wifi", operation),
+                None,
+                None,
+            )?;
+        } else {
+            notifier.send(
+                "Wi-Fi",
+                &format!("Turned {} the wifi", operation),
+                None,
+                None,
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn log(&self) -> anyhow::Result<()> {
         Logger::new("wifi").write(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, ValueEnum)]
+pub enum WifiTurnType {
+    On,
+    Off,
+}
+
+impl Display for WifiTurnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_ref())
+    }
+}
+
+impl AsRef<str> for WifiTurnType {
+    fn as_ref(&self) -> &str {
+        match self {
+            WifiTurnType::On => "on",
+            WifiTurnType::Off => "off",
+        }
     }
 }
