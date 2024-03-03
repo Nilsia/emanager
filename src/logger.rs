@@ -1,24 +1,36 @@
 use anyhow::anyhow;
+use core::panic;
 use serde::{Deserialize, Serialize};
-use std::{io::Write, marker::PhantomData};
+use std::{io::Write, marker::PhantomData, path::PathBuf};
 
-const DIR: &str = "/home/emanuel/.local/state/emanager";
+const DIR: &str = ".local/state/emanager";
 
 pub struct Logger<T: Serialize + for<'a> Deserialize<'a>> {
+    full_path: PathBuf,
     file: String,
     phantom: PhantomData<T>,
 }
 
 impl<T: Serialize + for<'a> Deserialize<'a>> Logger<T> {
     pub fn new(name: &str) -> Self {
+        let home_dir = dirs::home_dir();
+        if home_dir.is_none() {
+            panic!("Could not get your personnal directory");
+        }
+        let mut full_path = home_dir.unwrap();
+        full_path.push(DIR);
         Self {
-            file: format!("{DIR}/{name}"),
+            full_path: full_path.to_owned(),
+            file: format!(
+                "{}/{name}",
+                full_path.to_str().expect("You home directory is not valid")
+            ),
             phantom: PhantomData,
         }
     }
 
     pub fn write(&self, state: &T) -> anyhow::Result<()> {
-        std::fs::create_dir_all(DIR)?;
+        std::fs::create_dir_all(&self.full_path)?;
         self.truncate()?;
         let mut file = std::fs::OpenOptions::new()
             .create(true)
