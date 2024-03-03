@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::layout::Layout;
+use crate::layout::{Layout, LayoutOp};
 use crate::logger::Logger;
 use hyprland::data::{Client, Workspace, Workspaces};
 use hyprland::keyword::Keyword;
@@ -44,16 +44,22 @@ impl Hypr {
         pgrep.is_ok_and(|output| !output.stdout.is_empty())
     }
 
-    pub fn change_layout(layout_str: String, config: &Config) -> anyhow::Result<()> {
-        let layout = Layout::try_from(layout_str.as_str())?;
-        if !config.layouts.contains(&layout) {
-            return Err(anyhow::anyhow!(
-                "Given layout '{layout}' does not exist in configuration"
-            ));
+    pub fn change_layout(operation: LayoutOp, config: &Config) -> anyhow::Result<()> {
+        match operation {
+            LayoutOp::Set { layout: layout_str } => {
+                let layout = Layout::try_from(layout_str.as_str())?;
+                if !config.layouts.contains(&layout) {
+                    return Err(anyhow::anyhow!(
+                        "Given layout '{layout}' does not exist in configuration"
+                    ));
+                }
+                config.update_layout_sequence(&layout)?;
+                config.set_eww(&layout, None)?;
+                config.send_to_eww(&layout)?;
+                Ok(())
+            }
+            LayoutOp::Switch => config.switch_layout_sequence(),
         }
-        config.set_eww(&layout, None)?;
-        config.send_to_eww(&layout)?;
-        Ok(())
     }
 
     pub fn change_workspace() -> anyhow::Result<()> {

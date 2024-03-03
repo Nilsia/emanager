@@ -75,4 +75,16 @@ impl<T: Serialize + for<'a> Deserialize<'a>> Logger<T> {
         }
         Ok(())
     }
+
+    pub fn overwrite(&self, state: &T) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&self.full_path)?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&self.file)?;
+        let json = serde_json::to_vec(&state)?;
+        file.write_all(&json)?;
+        file.write_all(b"\n")?;
+        Ok(())
+    }
 }

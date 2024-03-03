@@ -43,7 +43,7 @@ impl Manager {
             Command::System { operation } => System::handle(operation),
             Command::Brightness { operation } => Brightness::handle(operation),
             Command::Volume { operation } => Volume::handle(operation),
-            Command::Layout { layout } => Hypr::change_layout(layout, config),
+            Command::Layout { operation } => Hypr::change_layout(operation, config),
             Command::Wifi { operation } => Wifi::handle(operation),
             Command::Daemon => Ok(()),
         }

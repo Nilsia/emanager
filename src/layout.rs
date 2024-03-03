@@ -85,6 +85,24 @@ impl TryFrom<&str> for Layout {
     }
 }
 
+impl TryFrom<&String> for Layout {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        if value.is_empty() {
+            return Err(anyhow::anyhow!("Please provide non empty layout"));
+        }
+        let splitted: Vec<&str> = value.split(":").collect();
+        if splitted.len() > 2 {
+            return Err(anyhow::anyhow!("Invalid layout"));
+        }
+        Ok(Self {
+            layout: splitted.get(0).unwrap().to_string(),
+            variant: splitted.get(1).map(|s| s.to_string()),
+        })
+    }
+}
+
 impl Serialize for Layout {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -92,4 +110,10 @@ impl Serialize for Layout {
     {
         serializer.serialize_str(&self.to_string())
     }
+}
+
+#[derive(Clone, clap::Subcommand)]
+pub enum LayoutOp {
+    Set { layout: String },
+    Switch,
 }

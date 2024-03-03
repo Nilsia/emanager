@@ -27,10 +27,17 @@ impl Config {
         layout_to_set: &Layout,
         current_layout: Option<&Layout>,
     ) -> anyhow::Result<()> {
-        let layouts = self.layouts.iter().fold(
+        if self.layouts.len() == 1 {
+            return Ok(());
+        }
+        let current = match current_layout {
+            Some(v) => v.to_owned(),
+            None => Layout::try_from_keyword()?,
+        };
+        let (layouts, layouts_var) = self.layouts.iter().fold(
             (
-                Vec::with_capacity(self.layouts.len()),
-                Vec::with_capacity(self.layouts.len()),
+                Vec::with_capacity(self.layouts.len()), // layout
+                Vec::with_capacity(self.layouts.len()), // variant
             ),
             |(mut lay, mut var), l| {
                 if l != layout_to_set {
@@ -42,18 +49,9 @@ impl Config {
         );
 
         let (layout_str, layout_variant_str) = (
-            layout_to_set.layout.to_owned() + "," + &layouts.0.join(","),
-            layout_to_set
-                .variant
-                .as_ref()
-                .map_or(String::new(), String::to_owned)
-                + ","
-                + &layouts.1.join(","),
+            self.generate_layout_hypr(layout_to_set, &layouts),
+            self.generate_variant_hypr(layout_to_set, &layouts_var),
         );
-        let current = match current_layout {
-            Some(v) => v.to_owned(),
-            None => Layout::try_from_keyword()?,
-        };
 
         // this allow smooth changes between layouts (Hyprland were crashing from layout without variants to layout with variants (resp reverse))
         if current.layout != layout_to_set.layout {
@@ -76,6 +74,19 @@ impl Config {
         Ok(())
     }
 
+    fn generate_variant_hypr(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
+        layout_to_set
+            .variant
+            .as_ref()
+            .map_or(String::new(), String::to_owned)
+            + ","
+            + &layouts.join(",")
+    }
+
+    fn generate_layout_hypr(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
+        layout_to_set.layout.to_owned() + "," + &layouts.join(",")
+    }
+
     pub(crate) fn send_to_eww(&self, layout: &Layout) -> anyhow::Result<()> {
         Logger::new("layout-list").send(
             &self
@@ -87,6 +98,47 @@ impl Config {
         )?;
         Logger::new("layout-selected").send(layout)?;
         Ok(())
+    }
+
+    fn get_layout_sequence(&self) -> anyhow::Result<Vec<Layout>> {
+        let data_err = Logger::<Vec<String>>::new("layouts_sequence").read();
+        if let Err(e) = data_err.as_ref() {
+            match e.downcast_ref::<std::io::Error>() {
+                Some(e_) => match e_.kind() {
+                    std::io::ErrorKind::NotFound => (),
+                    _ => return Err(anyhow::anyhow!(e.to_string())),
+                },
+                None => return Err(anyhow::anyhow!(e.to_string())),
+            }
+        }
+        Ok(data_err
+            .unwrap()
+            .iter()
+            .flat_map(Layout::try_from)
+            .collect::<Vec<Layout>>())
+    }
+
+    pub fn update_layout_sequence(&self, layout: &Layout) -> anyhow::Result<()> {
+        let mut data = self.get_layout_sequence()?;
+        data.retain(|l| l != layout);
+        data.insert(0, layout.to_owned());
+        Logger::new("layouts_sequence").overwrite(&data)?;
+
+        Ok(())
+    }
+
+    pub fn switch_layout_sequence(&self) -> anyhow::Result<()> {
+        let sequences = self.get_layout_sequence()?;
+        match sequences.len() {
+            0 | 1 => Ok(()),
+            _ => {
+                let layout = sequences.get(1).unwrap();
+                self.update_layout_sequence(layout)?;
+                self.set_eww(layout, None)?;
+                self.send_to_eww(layout)?;
+                Ok(())
+            }
+        }
     }
 }
 

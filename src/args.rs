@@ -1,3 +1,4 @@
+use crate::layout::LayoutOp;
 use crate::system::SystemOp;
 use crate::volume::VolumeOp;
 use crate::{brightness::BrightnessOp, wifi::WifiTurnType};
@@ -30,7 +31,10 @@ pub enum Command {
         operation: VolumeOp,
     },
     /// Change layout
-    Layout { layout: String },
+    Layout {
+        #[command(subcommand)]
+        operation: LayoutOp,
+    },
     /// Commands to handle wifi
     Wifi {
         #[arg(value_enum)]
