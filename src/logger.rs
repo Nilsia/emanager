@@ -87,4 +87,8 @@ impl<T: Serialize + for<'a> Deserialize<'a>> Logger<T> {
         file.write_all(b"\n")?;
         Ok(())
     }
+
+    pub fn try_exists(&self) -> anyhow::Result<bool> {
+        Ok(PathBuf::from(&self.file).try_exists()?)
+    }
 }

@@ -2,8 +2,10 @@ use crate::acpi::Acpi;
 use crate::args::Command;
 use crate::battery::Battery;
 use crate::brightness::Brightness;
+use crate::compositors::compositor::Compositor;
+use crate::compositors::hypr::Hypr;
+use crate::compositors::niri::Niri;
 use crate::config::Config;
-use crate::hypr::Hypr;
 use crate::system::System;
 use crate::volume::Volume;
 use crate::wifi::Wifi;
@@ -16,11 +18,20 @@ impl Manager {
         if Self::running() {
             return Err(anyhow!("Manager is already running"));
         }
+        let seq = config.get_layout_sequence()?;
+        let current_layout = config.compositor_type.get_first_layout_sequence()?;
+        config.set_layout(
+            &seq.first().expect("Error: sequence is empty"), // should never occure
+            Some(&current_layout),
+        )?;
         Self::init_view(config)?;
         std::thread::scope(|scope| -> anyhow::Result<()> {
             let handle = scope.spawn(|| Acpi::listen(config));
             scope.spawn(|| Battery::listen());
-            scope.spawn(|| Hypr::listen());
+            match config.compositor_type {
+                crate::config::CompositorType::Hyprland => scope.spawn(|| Hypr::listen()),
+                crate::config::CompositorType::Niri => scope.spawn(|| Niri::listen()),
+            };
             scope.spawn(|| Wifi::listen());
 
             handle.join().unwrap()
@@ -41,7 +52,7 @@ impl Manager {
             Command::System { operation } => System::handle(operation),
             Command::Brightness { operation } => Brightness::handle(operation),
             Command::Volume { operation } => Volume::handle(operation),
-            Command::Layout { operation } => Hypr::change_layout(operation, config),
+            Command::Layout { operation } => config.change_layout(operation),
             Command::Wifi { operation } => Wifi::handle(operation),
             Command::Daemon => Ok(()),
         }

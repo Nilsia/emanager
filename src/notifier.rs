@@ -1,4 +1,7 @@
-use crate::{hypr::Hypr, logger::Logger};
+use crate::{
+    compositors::{compositor::Compositor, hypr::Hypr},
+    logger::Logger,
+};
 use notify_rust::{Hint, Notification, Urgency};
 
 pub struct Notifier {

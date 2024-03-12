@@ -1,19 +1,5 @@
 use clap::Parser;
-
-mod acpi;
-mod args;
-mod battery;
-mod brightness;
-mod config;
-mod hypr;
-pub mod layout;
-mod logger;
-mod manager;
-mod notifier;
-mod system;
-mod utils;
-mod volume;
-mod wifi;
+use emanager::{args, config, manager};
 
 fn main() {
     let args = args::Args::parse();
@@ -25,6 +11,7 @@ fn main() {
         return;
     }
     let config = config.unwrap();
+    println!("{:#?}", config);
 
     let result = match args.command {
         args::Command::Daemon => manager::Manager::daemon(&config),

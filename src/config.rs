@@ -1,21 +1,63 @@
+use core::panic;
 use std::path::Path;
 
-use hyprland::keyword::Keyword;
 use serde::{Deserialize, Serialize};
 
-use crate::{layout::Layout, logger::Logger};
+use crate::{
+    compositors::{compositor::Compositor, hypr::Hypr, niri::Niri},
+    layout::{Layout, LayoutOp},
+    logger::Logger,
+};
+
+const LAYOUT_SEQUENCE_FILENAME: &str = "layouts_sequence";
+
+#[derive(Deserialize, Clone, Debug, Serialize)]
+pub enum CompositorType {
+    Hyprland,
+    Niri,
+}
+impl CompositorType {
+    fn set_layout(&self, layout_to_set: &Layout, config_layouts: &[Layout]) -> anyhow::Result<()> {
+        match self {
+            CompositorType::Hyprland => Hypr::set_layout(layout_to_set, config_layouts),
+            CompositorType::Niri => Niri::set_layout(layout_to_set, config_layouts),
+        }
+    }
+
+    pub(crate) fn get_first_layout_sequence(&self) -> anyhow::Result<Layout> {
+        match self {
+            CompositorType::Hyprland => Hypr::get_first_layout_sequence(),
+            CompositorType::Niri => Niri::get_first_layout_sequence(),
+        }
+    }
+}
+
+impl Default for CompositorType {
+    fn default() -> Self {
+        if crate::compositors::hypr::Hypr::running() {
+            Self::Hyprland
+        } else if crate::compositors::niri::Niri::running() {
+            Self::Niri
+        } else {
+            panic!("Could not find your compositor");
+        }
+    }
+}
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub layouts: Vec<Layout>,
-    pub compositor: String,
+    pub compositor_type: CompositorType,
 }
 
 impl Config {
     pub fn from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         if path.as_ref().exists() {
             let config: Config = toml::from_str(&std::fs::read_to_string(path)?)?;
+            if !Logger::<bool>::new(LAYOUT_SEQUENCE_FILENAME).try_exists()? {
+                config.init_layout_sequence()?;
+            }
             // TODO check if layouts are valid
             Ok(config)
         } else {
@@ -23,7 +65,7 @@ impl Config {
         }
     }
 
-    pub(crate) fn update_view(
+    pub(crate) fn set_layout(
         &self,
         layout_to_set: &Layout,
         current_layout: Option<&Layout>,
@@ -33,59 +75,35 @@ impl Config {
         }
         let current = match current_layout {
             Some(v) => v.to_owned(),
-            None => Layout::try_from_keyword()?,
+            None => Layout::try_from_sequence()?,
         };
-        let (layouts, layouts_var) = self.layouts.iter().fold(
-            (
-                Vec::with_capacity(self.layouts.len()), // layout
-                Vec::with_capacity(self.layouts.len()), // variant
-            ),
-            |(mut lay, mut var), l| {
-                if l != layout_to_set {
-                    lay.push(l.layout.to_owned());
-                    var.push(l.variant.as_ref().map_or(String::new(), String::to_owned));
-                }
-                (lay, var)
-            },
-        );
 
-        let (layout_str, layout_variant_str) = (
-            self.generate_layout_sequence(layout_to_set, &layouts),
-            self.generate_variant_sequence(layout_to_set, &layouts_var),
-        );
-
-        // this allow smooth changes between layouts (Hyprland were crashing from layout without variants to layout with variants (resp reverse))
-        if current.layout != layout_to_set.layout {
-            match (&layout_to_set.variant, &current.variant) {
-                (None, Some(_)) => {
-                    self.update_view(&Layout::new(&current.layout, None), Some(&current))?
+        match self.compositor_type {
+            CompositorType::Hyprland => {
+                // this allow smooth changes between layouts (Hyprland were crashing from layout without variants to layout with variants (resp reverse))
+                if current.layout != layout_to_set.layout {
+                    match (&layout_to_set.variant, &current.variant) {
+                        (None, Some(_)) => {
+                            self.set_layout(&Layout::new(&current.layout, None), Some(&current))?
+                        }
+                        (Some(_), None) => self.set_layout(
+                            &Layout::new(&layout_to_set.layout, None),
+                            Some(&current),
+                        )?,
+                        (Some(_), Some(_)) => self.set_layout(
+                            &Layout::new(&layout_to_set.layout, None),
+                            Some(&current),
+                        )?,
+                        (None, None) => (),
+                    }
                 }
-                (Some(_), None) => {
-                    self.update_view(&Layout::new(&layout_to_set.layout, None), Some(&current))?
-                }
-                (Some(_), Some(_)) => {
-                    self.update_view(&Layout::new(&layout_to_set.layout, None), Some(&current))?
-                }
-                (None, None) => (),
             }
+            CompositorType::Niri => (),
         }
 
-        Keyword::set("input:kb_layout", layout_str)?;
-        Keyword::set("input:kb_variant", layout_variant_str)?;
+        self.compositor_type
+            .set_layout(layout_to_set, &self.layouts)?;
         Ok(())
-    }
-
-    fn generate_variant_sequence(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
-        layout_to_set
-            .variant
-            .as_ref()
-            .map_or(String::new(), String::to_owned)
-            + ","
-            + &layouts.join(",")
-    }
-
-    fn generate_layout_sequence(&self, layout_to_set: &Layout, layouts: &[String]) -> String {
-        layout_to_set.layout.to_owned() + "," + &layouts.join(",")
     }
 
     pub(crate) fn send_to_view(&self, layout: &Layout) -> anyhow::Result<()> {
@@ -101,8 +119,13 @@ impl Config {
         Ok(())
     }
 
-    fn get_layout_sequence(&self) -> anyhow::Result<Vec<Layout>> {
-        let data_err = Logger::<Vec<String>>::new("layouts_sequence").read();
+    /// Returns the layouts sequence stored in the file named `LAYOUT_SEQUENCE_FILENAME`
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there is any error excepted NotFound when reading the files containing the layouts sequence.
+    pub fn get_layout_sequence(&self) -> anyhow::Result<Vec<Layout>> {
+        let data_err = Logger::<Vec<String>>::new(LAYOUT_SEQUENCE_FILENAME).read();
         if let Err(e) = data_err.as_ref() {
             match e.downcast_ref::<std::io::Error>() {
                 Some(e_) => match e_.kind() {
@@ -122,6 +145,13 @@ impl Config {
         }
     }
 
+    fn init_layout_sequence(&self) -> anyhow::Result<()> {
+        for layout in &self.layouts {
+            self.update_layout_sequence(layout)?;
+        }
+        Ok(())
+    }
+
     pub fn update_layout_sequence(&self, layout: &Layout) -> anyhow::Result<()> {
         let mut data = self.get_layout_sequence()?;
         data.retain(|l| l != layout);
@@ -137,9 +167,9 @@ impl Config {
             0 | 1 => Ok(()),
             _ => {
                 let layout = sequences.get(1).unwrap();
-                self.update_layout_sequence(layout)?;
-                self.update_view(layout, None)?;
+                self.set_layout(layout, None)?;
                 self.send_to_view(layout)?;
+                self.update_layout_sequence(layout)?;
                 Ok(())
             }
         }
@@ -153,12 +183,30 @@ impl Config {
             ))??;
         Ok(())
     }
+
+    pub fn change_layout(&self, operation: LayoutOp) -> anyhow::Result<()> {
+        match operation {
+            LayoutOp::Set { layout: layout_str } => {
+                let layout = Layout::try_from(layout_str.as_str())?;
+                if !self.layouts.contains(&layout) {
+                    return Err(anyhow::anyhow!(
+                        "Given layout '{layout}' does not exist in configuration"
+                    ));
+                }
+                self.set_layout(&layout, None)?;
+                self.send_to_view(&layout)?;
+                self.update_layout_sequence(&layout)?;
+                Ok(())
+            }
+            LayoutOp::Switch => self.switch_layout_sequence(),
+        }
+    }
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            compositor: String::from("hyprland"),
+            compositor_type: CompositorType::default(),
             layouts: vec![Layout::new("fr", None), Layout::new("us", None)],
         }
     }

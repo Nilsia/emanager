@@ -1,11 +1,10 @@
 use std::fmt::Display;
 
-use hyprland::keyword::Keyword;
 use serde::{Deserialize, Serialize};
 
-use crate::logger::Logger;
+use crate::{config::Config, logger::Logger};
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, PartialOrd, Ord)]
 pub struct Layout {
     pub layout: String,
     pub variant: Option<String>,
@@ -39,21 +38,24 @@ impl Layout {
         s
     }
 
-    pub(crate) fn try_from_keyword() -> anyhow::Result<Self> {
-        let var_string = Keyword::get("input:kb_variant")?.value.to_string();
-        let lay_string = Keyword::get("input:kb_layout")?.value.to_string();
-        let var: Vec<&str> = var_string.split(",").collect();
-        let lay: Vec<&str> = lay_string.split(",").collect();
-        if var.is_empty() || lay.is_empty() {
-            return Err(anyhow::anyhow!(
-                "Invalid layouts configuration please fill kb_layout and kb_variant"
-            ));
-        }
-        Ok(Self::new(
-            lay.get(0).unwrap(),
-            var.first()
-                .map_or(None, |v| if v.trim().is_empty() { None } else { Some(v) }),
-        ))
+    pub(crate) fn try_from_sequence() -> anyhow::Result<Self> {
+        let config = Config::default();
+        let seq = config.get_layout_sequence()?;
+        seq.first()
+            .map(|v| v.to_owned())
+            .ok_or(anyhow::anyhow!("Error: layout sequence is empty"))
+    }
+    pub fn generate_variant_sequence(layout_to_set: &Layout, layouts: &[String]) -> String {
+        layout_to_set
+            .variant
+            .as_ref()
+            .map_or(String::new(), String::to_owned)
+            + ","
+            + &layouts.join(",")
+    }
+
+    pub fn generate_layout_sequence(layout_to_set: &Layout, layouts: &[String]) -> String {
+        layout_to_set.layout.to_owned() + "," + &layouts.join(",")
     }
 }
 
