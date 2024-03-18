@@ -1,5 +1,5 @@
 use crate::{
-    compositors::{compositor::Compositor, hypr::Hypr},
+    config::{CompositorType, CurrentState},
     logger::Logger,
 };
 use notify_rust::{Hint, Notification, Urgency};
@@ -22,8 +22,9 @@ impl Notifier {
         urgency: Option<Urgency>,
         value: Option<u32>,
     ) -> anyhow::Result<()> {
-        if Hypr::running() {
-            let color = format!("#{}ee", Hypr::get_color());
+        if CompositorType::is_a_compositor_running() {
+            let current_state: CurrentState = CompositorType::get_current_state()?;
+            let color = format!("#{}ee", current_state.color);
             let mut notif = Notification::new()
                 .summary(summary)
                 .body(body)

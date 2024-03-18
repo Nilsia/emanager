@@ -1,4 +1,3 @@
-use core::panic;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +9,10 @@ use crate::{
 };
 
 const LAYOUT_SEQUENCE_FILENAME: &str = "layouts_sequence";
+
+pub struct CurrentState {
+    pub color: String,
+}
 
 #[derive(Deserialize, Clone, Debug, Serialize)]
 pub enum CompositorType {
@@ -30,17 +33,36 @@ impl CompositorType {
             CompositorType::Niri => Niri::get_first_layout_sequence(),
         }
     }
+
+    pub(crate) fn get_running_compositor_type() -> anyhow::Result<Self> {
+        if crate::compositors::hypr::Hypr::running() {
+            Ok(Self::Hyprland)
+        } else if crate::compositors::niri::Niri::running() {
+            Ok(Self::Niri)
+        } else {
+            Err(anyhow::anyhow!("Could not find your compositor"))
+        }
+    }
+
+    pub(crate) fn is_a_compositor_running() -> bool {
+        crate::compositors::hypr::Hypr::running() || crate::compositors::niri::Niri::running()
+    }
+
+    pub(crate) fn get_current_state() -> anyhow::Result<CurrentState> {
+        Self::get_running_compositor_type().map(|v| match v {
+            CompositorType::Hyprland => CurrentState {
+                color: Hypr::get_color(),
+            },
+            CompositorType::Niri => CurrentState {
+                color: Niri::get_color(),
+            },
+        })
+    }
 }
 
 impl Default for CompositorType {
     fn default() -> Self {
-        if crate::compositors::hypr::Hypr::running() {
-            Self::Hyprland
-        } else if crate::compositors::niri::Niri::running() {
-            Self::Niri
-        } else {
-            panic!("Could not find your compositor");
-        }
+        Self::get_running_compositor_type().unwrap()
     }
 }
 
