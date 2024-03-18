@@ -199,7 +199,22 @@ impl Config {
                 Ok(())
             }
             LayoutOp::Switch => self.switch_layout_sequence(),
+            LayoutOp::Reset => {
+                eprintln!("This feature is not working for now.");
+                return Ok(());
+                // self.change_layout(LayoutOp::Set {
+                // layout: self.get_first_layout_of_sequence()?.to_string(),
+                // })
+            }
         }
+    }
+
+    #[allow(dead_code)]
+    fn get_first_layout_of_sequence(&self) -> anyhow::Result<Layout> {
+        self.get_layout_sequence()?
+            .first()
+            .ok_or(anyhow::anyhow!("Error: Cannot get layouts from sequence"))
+            .map(|v| v.to_owned())
     }
 }
 

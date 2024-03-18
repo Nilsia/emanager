@@ -11,7 +11,6 @@ fn main() {
         return;
     }
     let config = config.unwrap();
-    println!("{:#?}", config);
 
     let result = match args.command {
         args::Command::Daemon => manager::Manager::daemon(&config),

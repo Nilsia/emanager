@@ -1,4 +1,5 @@
 use crate::layout::LayoutOp;
+use crate::microphone::MicrophoneOp;
 use crate::system::SystemOp;
 use crate::volume::VolumeOp;
 use crate::{brightness::BrightnessOp, wifi::WifiTurnType};
@@ -39,5 +40,10 @@ pub enum Command {
     Wifi {
         #[arg(value_enum)]
         operation: WifiTurnType,
+    },
+    /// Commands to handle microhpones
+    Microphone {
+        #[arg(value_enum)]
+        operation: MicrophoneOp,
     },
 }

@@ -118,4 +118,5 @@ impl Serialize for Layout {
 pub enum LayoutOp {
     Set { layout: String },
     Switch,
+    Reset,
 }

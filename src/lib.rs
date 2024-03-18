@@ -11,6 +11,7 @@ pub mod config;
 pub mod layout;
 pub mod logger;
 pub mod manager;
+pub mod microphone;
 pub mod notifier;
 pub mod system;
 pub mod utils;

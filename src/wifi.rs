@@ -26,6 +26,9 @@ impl Wifi {
     }
 
     fn get_state() -> anyhow::Result<WifiState> {
+        if !Self::is_enabled()? {
+            return Ok(WifiState::new(false, false, "", 0));
+        }
         let output = Self::exec(&["-t", "-f", "active,ssid,signal", "dev", "wifi"])?;
         Ok(String::from_utf8(output.stdout)?
             .lines()
@@ -34,10 +37,10 @@ impl Wifi {
                 let active = info.get(0).is_some_and(|i| i == &"yes");
                 let ssid = info.get(1).unwrap_or(&"");
                 let signal = info.get(2).unwrap_or(&"0").parse::<u32>().unwrap_or(0);
-                WifiState::new(active, ssid, signal)
+                WifiState::new(true, active, ssid, signal)
             })
             .find(|state| state.active)
-            .unwrap_or(WifiState::new(false, "", 0)))
+            .unwrap_or(WifiState::new(true, false, "", 0)))
     }
 
     fn turn_on() -> anyhow::Result<()> {
@@ -56,7 +59,7 @@ impl Wifi {
         {
             (Self::get_state()?, false)
         } else {
-            (WifiState::new(false, "", 0), true)
+            (WifiState::new(!signal.to_bool(), false, "", 0), true)
         };
         state.update_view()?;
         state.notify_switch_update((WifiTurnType::On, error))
@@ -77,17 +80,22 @@ impl Wifi {
     pub(crate) fn init_view() -> anyhow::Result<()> {
         Self::get_state()?.update_view()
     }
+
+    fn is_enabled() -> anyhow::Result<bool> {
+        Ok(String::from_utf8(Self::exec(&["radio", "wifi"])?.stdout)? != "disabled\n")
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
 struct WifiState {
+    enable: bool,
     active: bool,
     ssid: String,
     icon: String,
 }
 
 impl WifiState {
-    pub fn new(active: bool, ssid: &str, signal: u32) -> Self {
+    pub fn new(enable: bool, active: bool, ssid: &str, signal: u32) -> Self {
         let icon = if !active {
             "󰤭 "
         } else if signal >= 75 {
@@ -101,7 +109,12 @@ impl WifiState {
         }
         .to_string();
         let ssid = ssid.to_string();
-        Self { active, ssid, icon }
+        Self {
+            enable,
+            active,
+            ssid,
+            icon,
+        }
     }
 
     pub fn notify_connection_update(&self, prev: Option<Self>) -> anyhow::Result<()> {
@@ -156,6 +169,14 @@ impl WifiState {
 pub enum WifiTurnType {
     On,
     Off,
+}
+impl WifiTurnType {
+    fn to_bool(&self) -> bool {
+        match self {
+            WifiTurnType::On => true,
+            WifiTurnType::Off => false,
+        }
+    }
 }
 
 impl Display for WifiTurnType {

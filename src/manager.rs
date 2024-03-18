@@ -6,6 +6,7 @@ use crate::compositors::compositor::Compositor;
 use crate::compositors::hypr::Hypr;
 use crate::compositors::niri::Niri;
 use crate::config::Config;
+use crate::microphone::Microphone;
 use crate::system::System;
 use crate::volume::Volume;
 use crate::wifi::Wifi;
@@ -54,6 +55,7 @@ impl Manager {
             Command::Volume { operation } => Volume::handle(operation),
             Command::Layout { operation } => config.change_layout(operation),
             Command::Wifi { operation } => Wifi::handle(operation),
+            Command::Microphone { operation } => Microphone::handle(operation),
             Command::Daemon => Ok(()),
         }
     }
