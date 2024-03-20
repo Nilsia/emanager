@@ -43,7 +43,7 @@ pub enum Command {
     },
     /// Commands to handle microhpones
     Microphone {
-        #[arg(value_enum)]
+        #[command(subcommand)]
         operation: MicrophoneOp,
     },
 }

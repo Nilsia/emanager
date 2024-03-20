@@ -45,6 +45,7 @@ impl Manager {
         Brightness::init_view()?;
         Wifi::init_view()?;
         Battery::init_view()?;
+        Microphone::init_view()?;
         Ok(())
     }
 
