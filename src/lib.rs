@@ -3,17 +3,22 @@ pub mod compositors {
     pub mod hypr;
     pub mod niri;
 }
+
+pub mod components {
+    pub mod battery;
+    pub mod brightness;
+    pub mod components;
+    pub mod layout;
+    pub mod microphone;
+    pub mod system;
+    pub mod volume;
+    pub mod wifi;
+}
+
 pub mod acpi;
 pub mod args;
-pub mod battery;
-pub mod brightness;
 pub mod config;
-pub mod layout;
 pub mod logger;
 pub mod manager;
-pub mod microphone;
 pub mod notifier;
-pub mod system;
 pub mod utils;
-pub mod volume;
-pub mod wifi;

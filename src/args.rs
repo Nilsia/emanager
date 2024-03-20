@@ -1,8 +1,7 @@
-use crate::layout::LayoutOp;
-use crate::microphone::MicrophoneOp;
-use crate::system::SystemOp;
-use crate::volume::VolumeOp;
-use crate::{brightness::BrightnessOp, wifi::WifiTurnType};
+use crate::components::{
+    brightness::BrightnessOp, layout::LayoutOp, microphone::MicrophoneOp, system::SystemOp,
+    volume::VolumeOp, wifi::WifiTurnType,
+};
 use clap::{command, Parser, Subcommand};
 
 #[derive(Parser)]

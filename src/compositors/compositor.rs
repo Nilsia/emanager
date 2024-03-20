@@ -2,7 +2,7 @@ use std::process::Command;
 
 use rand::seq::IteratorRandom;
 
-use crate::{config::CompositorType, layout::Layout, logger::Logger};
+use crate::{components::layout::Layout, config::CompositorType, logger::Logger};
 
 const DEFAULT_COLOR: &str = "7aa2f7";
 const COLORS: &[&str] = &["7aa2f7", "9ece6a", "e0af68", "bb9af7", "7dcfff", "c0caf5"];

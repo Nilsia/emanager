@@ -1,18 +1,20 @@
 use std::{
     ffi::OsStr,
     process::{Command, Output},
-    time::Duration,
 };
 
 use clap::Subcommand;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::{logger::Logger, notifier::Notifier};
+use crate::notifier::Notifier;
+
+use super::components::{NotifiableState, ScaledComponent};
 
 pub struct Microphone;
 const PROGRAM: &str = "amixer";
 const MUTE_COMMAND: &[&str] = &["-D", "pulse", "set", "Capture", "1+", "toggle"];
+const JSON_VIEW_NAME: &str = "microphone-json";
 
 impl Microphone {
     pub fn working() -> anyhow::Result<bool> {
@@ -27,13 +29,40 @@ impl Microphone {
         Self::get_state().map(|v| v.muted)
     }
 
-    // fn get() -> anyhow::Result<u32> {
-    //     if Self::working()? {
-    //         Self::get_state().map(|v| v.value)
-    //     } else {
-    //         Ok(0)
-    //     }
-    // }
+    fn exec(args: &[impl AsRef<OsStr>]) -> anyhow::Result<Output> {
+        let output = Command::new(PROGRAM).args(args).output()?;
+        Ok(output)
+    }
+
+    fn mute() -> anyhow::Result<()> {
+        Self::exec(MUTE_COMMAND)?;
+        Self::update(0)
+    }
+
+    pub fn handle(operation: MicrophoneOp) -> anyhow::Result<()> {
+        match operation {
+            MicrophoneOp::Mute => Self::mute(),
+            MicrophoneOp::Up { percent } => Self::up(percent),
+            MicrophoneOp::Down { percent } => Self::down(percent),
+            MicrophoneOp::Set { percent } => Self::set(percent),
+            MicrophoneOp::Update => Self::update(500),
+        }
+    }
+
+    pub(crate) fn init_view() -> anyhow::Result<()> {
+        let state = Self::get_state()?;
+        state.update_view()
+    }
+}
+
+impl ScaledComponent<MicrophoneState> for Microphone {
+    fn get() -> anyhow::Result<u32> {
+        if Self::working()? {
+            Self::get_state().map(|v| v.value)
+        } else {
+            Ok(0)
+        }
+    }
 
     fn set(percent: u32) -> anyhow::Result<()> {
         if !Self::muted()? {
@@ -56,11 +85,6 @@ impl Microphone {
         Self::update(0)
     }
 
-    fn exec(args: &[impl AsRef<OsStr>]) -> anyhow::Result<Output> {
-        let output = Command::new(PROGRAM).args(args).output()?;
-        Ok(output)
-    }
-
     fn get_state() -> anyhow::Result<MicrophoneState> {
         if Self::working()? {
             let reg = Regex::new(r"(?m)^.* \[(?<percent>\d+)%\] \[(?<mute>.*)\]$")?;
@@ -78,36 +102,8 @@ impl Microphone {
             Ok(MicrophoneState::new(false, false, 0))
         }
     }
-
-    fn mute() -> anyhow::Result<()> {
-        Self::exec(MUTE_COMMAND)?;
-        Self::update(0)
-    }
-
-    pub fn handle(operation: MicrophoneOp) -> anyhow::Result<()> {
-        match operation {
-            MicrophoneOp::Mute => Self::mute(),
-            MicrophoneOp::Up { percent } => Self::up(percent),
-            MicrophoneOp::Down { percent } => Self::down(percent),
-            MicrophoneOp::Set { percent } => Self::set(percent),
-            MicrophoneOp::Update => Self::update(500),
-        }
-    }
-
-    fn update(delay: u64) -> anyhow::Result<()> {
-        if delay != 0 {
-            std::thread::sleep(Duration::from_millis(delay));
-        }
-        let state = Self::get_state()?;
-        state.notify()?;
-        state.update_view()
-    }
-
-    pub(crate) fn init_view() -> anyhow::Result<()> {
-        let state = Self::get_state()?;
-        state.update_view()
-    }
 }
+
 #[derive(Copy, Clone, Subcommand)]
 pub enum MicrophoneOp {
     /// Increase by percentage
@@ -132,7 +128,7 @@ pub enum MicrophoneOp {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct MicrophoneState {
+pub struct MicrophoneState {
     value: u32,
     working: bool,
     pub muted: bool,
@@ -149,8 +145,10 @@ impl MicrophoneState {
             value,
         }
     }
+}
 
-    pub fn notify(&self) -> anyhow::Result<()> {
+impl NotifiableState for MicrophoneState {
+    fn notify(&self) -> anyhow::Result<()> {
         let notifier = Notifier::new("microphone");
         if !self.working {
             notifier.send("Microphone", "No output", None, None)
@@ -166,7 +164,7 @@ impl MicrophoneState {
         }
     }
 
-    pub fn update_view(&self) -> anyhow::Result<()> {
-        Logger::new("microphone-json").send(self)
+    fn json_name(&self) -> &str {
+        JSON_VIEW_NAME
     }
 }

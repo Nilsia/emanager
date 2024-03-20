@@ -1,15 +1,12 @@
 use crate::acpi::Acpi;
 use crate::args::Command;
-use crate::battery::Battery;
-use crate::brightness::Brightness;
-use crate::compositors::compositor::Compositor;
-use crate::compositors::hypr::Hypr;
-use crate::compositors::niri::Niri;
+use crate::components::components::ScaledComponent;
+use crate::components::{
+    battery::Battery, brightness::Brightness, microphone::Microphone, system::System,
+    volume::Volume, wifi::Wifi,
+};
+use crate::compositors::{compositor::Compositor, hypr::Hypr, niri::Niri};
 use crate::config::Config;
-use crate::microphone::Microphone;
-use crate::system::System;
-use crate::volume::Volume;
-use crate::wifi::Wifi;
 use anyhow::anyhow;
 
 pub struct Manager;

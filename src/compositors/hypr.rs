@@ -1,9 +1,11 @@
+use crate::components::layout::Layout;
 use crate::config::CompositorType;
-use crate::layout::Layout;
 use crate::logger::Logger;
-use hyprland::data::{Client, Workspace, Workspaces};
-use hyprland::keyword::Keyword;
-use hyprland::shared::{HyprData, HyprDataActive, HyprDataActiveOptional};
+use hyprland::{
+    data::{Client, Workspace, Workspaces},
+    keyword::Keyword,
+    shared::{HyprData, HyprDataActive, HyprDataActiveOptional},
+};
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};

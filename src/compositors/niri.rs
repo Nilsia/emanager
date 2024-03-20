@@ -2,7 +2,9 @@ pub mod niri_editor;
 
 use std::{process::Command, time::Duration};
 
-use crate::{compositors::niri::niri_editor::NiriEditor, config::CompositorType, layout::Layout};
+use crate::{
+    components::layout::Layout, compositors::niri::niri_editor::NiriEditor, config::CompositorType,
+};
 
 use super::compositor::Compositor;
 

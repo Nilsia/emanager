@@ -3,8 +3,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    components::layout::{Layout, LayoutOp},
     compositors::{compositor::Compositor, hypr::Hypr, niri::Niri},
-    layout::{Layout, LayoutOp},
     logger::Logger,
 };
 

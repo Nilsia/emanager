@@ -1,47 +1,18 @@
-use crate::logger::Logger;
 use crate::notifier::Notifier;
 use crate::utils::utf8_to_u32;
 use clap::Subcommand;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::process::{Command, Output};
-use std::time::Duration;
+
+use super::components::{NotifiableState, ScaledComponent};
 
 const PROGRAM: &str = "brightnessctl";
+const JSON_VIEW_NAME: &str = "brightness-json";
 
 pub struct Brightness;
 
 impl Brightness {
-    pub fn get() -> anyhow::Result<u32> {
-        let value = utf8_to_u32(Self::exec(&["get"])?.stdout)?;
-        let percent = value as f32 * 100. / Self::max()? as f32;
-        Ok(percent.round() as u32)
-    }
-
-    pub fn set(percent: u32) -> anyhow::Result<()> {
-        Self::exec(&["set", &format!("{percent}%")])?;
-        Self::update(0)
-    }
-
-    pub fn up(percent: u32) -> anyhow::Result<()> {
-        Self::exec(&["set", &format!("+{percent}%")])?;
-        Self::update(0)
-    }
-
-    pub fn down(percent: u32) -> anyhow::Result<()> {
-        Self::exec(&["set", &format!("{percent}%-")])?;
-        Self::update(0)
-    }
-
-    pub fn update(delay: u64) -> anyhow::Result<()> {
-        if delay != 0 {
-            std::thread::sleep(Duration::from_millis(delay));
-        }
-        let state = BrightnessState::new(Self::get()?);
-        state.notify()?;
-        state.update_view()
-    }
-
     pub fn handle(operation: BrightnessOp) -> anyhow::Result<()> {
         match operation {
             BrightnessOp::Up { percent } => Self::up(percent),
@@ -60,9 +31,32 @@ impl Brightness {
         let output = Command::new(PROGRAM).args(args).output()?;
         Ok(output)
     }
+}
 
-    pub(crate) fn init_view() -> anyhow::Result<()> {
-        BrightnessState::new(Self::get()?).update_view()
+impl ScaledComponent<BrightnessState> for Brightness {
+    fn get() -> anyhow::Result<u32> {
+        let value = utf8_to_u32(Self::exec(&["get"])?.stdout)?;
+        let percent = value as f32 * 100. / Self::max()? as f32;
+        Ok(percent.round() as u32)
+    }
+
+    fn set(percent: u32) -> anyhow::Result<()> {
+        Self::exec(&["set", &format!("{percent}%")])?;
+        Self::update(0)
+    }
+
+    fn up(percent: u32) -> anyhow::Result<()> {
+        Self::exec(&["set", &format!("+{percent}%")])?;
+        Self::update(0)
+    }
+
+    fn down(percent: u32) -> anyhow::Result<()> {
+        Self::exec(&["set", &format!("{percent}%-")])?;
+        Self::update(0)
+    }
+
+    fn get_state() -> anyhow::Result<BrightnessState> {
+        Ok(BrightnessState::new(Self::get()?))
     }
 }
 
@@ -88,7 +82,7 @@ pub enum BrightnessOp {
 }
 
 #[derive(Serialize, Deserialize)]
-struct BrightnessState {
+pub struct BrightnessState {
     value: u32,
     icon: String,
 }
@@ -117,17 +111,19 @@ impl BrightnessState {
         .to_string();
         Self { value, icon }
     }
+}
 
-    pub fn notify(&self) -> anyhow::Result<()> {
+impl NotifiableState for BrightnessState {
+    fn json_name(&self) -> &str {
+        JSON_VIEW_NAME
+    }
+
+    fn notify(&self) -> anyhow::Result<()> {
         Notifier::new("brightness").send(
             "Brightness",
             &format!("Set to {}%", self.value),
             None,
             Some(self.value),
         )
-    }
-
-    pub fn update_view(&self) -> anyhow::Result<()> {
-        Logger::new("brightness-json").send(self)
     }
 }
