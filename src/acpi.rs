@@ -1,4 +1,5 @@
 use crate::args::Command;
+use crate::components::microphone::MicrophoneOp;
 use crate::components::{brightness::BrightnessOp, system::SystemOp, volume::VolumeOp};
 use crate::config::Config;
 use crate::manager::Manager;
@@ -28,6 +29,7 @@ impl Acpi {
     }
 
     fn handle(event: &[&str], config: &Config) -> anyhow::Result<()> {
+        println!("{:#?}", event.get(0));
         match event.get(0) {
             Some(&"button/lid") => match event.get(2) {
                 Some(&"close") => Some(Command::System {
@@ -55,6 +57,9 @@ impl Acpi {
             }),
             Some(&"jack/headphone") => Some(Command::Volume {
                 operation: VolumeOp::Update,
+            }),
+            Some(&"button/f20") => Some(Command::Microphone {
+                operation: MicrophoneOp::Mute,
             }),
             _ => None,
         }
